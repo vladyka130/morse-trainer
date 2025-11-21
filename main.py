@@ -377,9 +377,12 @@ class MorseTrainer:
         self.temp_audio_files = []
         self.temp_files_lock = threading.Lock()
         
-        # Використовуємо data URI замість файлів (опціонально, для оптимізації)
-        # ПРИМІТКА: data URI може не працювати з застарілим ft.Audio(), тому використовуємо файли
-        self.use_data_uri = False  # True = data URI (без файлів), False = тимчасові файли
+        # Використовуємо data URI замість файлів для веб-хостингу
+        # На веб-хостингу (Render, Railway тощо) тимчасові файли недоступні через браузер
+        # Тому використовуємо data URI для веб-режиму
+        import os
+        is_web_hosting = os.environ.get("RENDER") or os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("PORT")
+        self.use_data_uri = bool(is_web_hosting)  # True для веб-хостингу, False для локального запуску
         
         # Режими роботи
         self.training_mode = False  # False = просте відтворення, True = режим тренування
@@ -714,14 +717,22 @@ class MorseTrainer:
                         self.update_stats_display()
                         self.page.update()
                 
-                    # Створюємо аудіо контрол (без playback_rate - звук вже згенерований з правильною швидкістю)
-                    # Приховуємо попередження про deprecation (ft.Audio все ще працює)
+                    # Створюємо аудіо контрол
+                    # Для веб-хостингу використовуємо data URI, для локального - файли
                     with warnings.catch_warnings():
                         warnings.filterwarnings("ignore", category=DeprecationWarning)
-                        audio = ft.Audio(
-                            src=str(audio_file),
-                            autoplay=True,
-                        )
+                        if self.use_data_uri and isinstance(audio_file, str) and audio_file.startswith("data:"):
+                            # Використовуємо data URI для веб-хостингу
+                            audio = ft.Audio(
+                                src=audio_file,  # data URI рядок
+                                autoplay=True,
+                            )
+                        else:
+                            # Використовуємо файл для локального запуску
+                            audio = ft.Audio(
+                                src=str(audio_file),
+                                autoplay=True,
+                            )
                     self.page.overlay.append(audio)
                     self.audio_controls.append(audio)
                     self.page.update()
@@ -765,9 +776,15 @@ class MorseTrainer:
                 duration = self.calculate_symbol_duration(symbol)
                 
                 # Приховуємо попередження про deprecation
+                # Для веб-хостингу використовуємо data URI, для локального - файли
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", category=DeprecationWarning)
-                    audio = ft.Audio(src=str(audio_file), autoplay=True)
+                    if self.use_data_uri and isinstance(audio_file, str) and audio_file.startswith("data:"):
+                        # Використовуємо data URI для веб-хостингу
+                        audio = ft.Audio(src=audio_file, autoplay=True)
+                    else:
+                        # Використовуємо файл для локального запуску
+                        audio = ft.Audio(src=str(audio_file), autoplay=True)
                 self.page.overlay.append(audio)
                 self.audio_controls.append(audio)
                 self.page.update()
